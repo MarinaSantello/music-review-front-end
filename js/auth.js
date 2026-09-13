@@ -25,7 +25,7 @@ function renderNavbar() {
 
   nav.innerHTML = `
     <div class="nav-inner">
-      <a href="index.html" class="brand">🎵 MusicBox</a>
+      <a href="index.html" class="brand">🎵 Music Review</a>
       <div class="nav-links">
         ${user
           ? `<span class="nav-user">Olá, ${user.name}</span>
