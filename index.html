@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MusicBox - Buscar músicas</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <nav id="navbar"></nav>
+
+  <main>
+    <h1>Buscar músicas</h1>
+
+    <input
+      type="text"
+      id="searchInput"
+      class="search-box"
+      placeholder="Digite o nome de uma música..."
+      autocomplete="off"
+    >
+
+    <div id="resultsArea">
+      <div class="empty-state">Digite algo para começar a busca.</div>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    const searchInput = document.getElementById('searchInput');
+    const resultsArea = document.getElementById('resultsArea');
+
+    let debounceTimer = null;
+
+    searchInput.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      const termo = searchInput.value.trim();
+
+      if (!termo) {
+        resultsArea.innerHTML = '<div class="empty-state">Digite algo para começar a busca.</div>';
+        return;
+      }
+
+      // Espera 350ms depois da última tecla digitada antes de buscar,
+      // pra não disparar uma requisição a cada letra
+      debounceTimer = setTimeout(() => buscarMusicas(termo), 350);
+    });
+
+    async function buscarMusicas(termo) {
+      resultsArea.innerHTML = '<div class="loading-state">Buscando...</div>';
+
+      const { data, status } = await apiRequest('/reviews/search', 'POST', { name: termo });
+
+      // A API pode devolver o objeto direto ou dentro de um array, então tratamos os dois casos
+      const payload = Array.isArray(data) ? data[0] : data;
+
+      if (!payload || !payload.success) {
+        if (status === 404) {
+          resultsArea.innerHTML = '<div class="empty-state">Nenhuma música encontrada.</div>';
+        } else {
+          resultsArea.innerHTML = `<div class="empty-state">${(payload && payload.message) || 'Erro ao buscar músicas.'}</div>`;
+        }
+        return;
+      }
+
+      renderResultados(payload.musicas || []);
+    }
+
+    // rate vem de 0 a 10; convertemos pra estrelas de 0 a 5 (rate 7 = 3,5 estrelas)
+    function formatRate(rate) {
+      if (typeof rate !== 'number') {
+        return 'Sem nota';
+      }
+      const stars = rate / 2;
+      const label = Number.isInteger(stars) ? stars : stars.toFixed(1);
+      return `★ ${label}`;
+    }
+
+    // Monta o texto dos artistas com o iconezinho de cada um (agora vem como {nome, icone})
+    function renderArtistas(artistas) {
+      if (!artistas || artistas.length === 0) return '';
+
+      return artistas
+        .map((artista) => {
+          const icone = artista.icone
+            ? `<img class="artist-icon" src="${artista.icone}" alt="">`
+            : '';
+          return `<span class="artist-chip">${icone}${artista.nome}</span>`;
+        })
+        .join('<span class="artist-sep">, </span>');
+    }
+
+    function renderResultados(musicas) {
+      if (musicas.length === 0) {
+        resultsArea.innerHTML = '<div class="empty-state">Nenhuma música encontrada.</div>';
+        return;
+      }
+
+      const grid = document.createElement('div');
+      grid.className = 'results-grid';
+
+      musicas.forEach((musica) => {
+        const card = document.createElement('a');
+        card.className = 'music-card';
+        card.href = musica.linkSpotify || '#';
+        card.target = '_blank';
+        card.rel = 'noopener noreferrer';
+
+        const capa = (musica.album && musica.album.capa) || '';
+        const temLikes = musica.qtd_likes !== null && musica.qtd_likes !== undefined;
+
+        card.innerHTML = `
+          <img src="${capa}" alt="Capa de ${musica.nome}" loading="lazy">
+          <div class="music-card-info">
+            <span class="music-title">${musica.nome}</span>
+            <span class="music-artist">${renderArtistas(musica.artistas)}</span>
+            <div class="music-meta">
+              <span>${musica.ano || ''}</span>
+              <span class="rate-badge">${formatRate(musica.rate)}</span>
+            </div>
+            ${temLikes ? `<div class="likes-badge">♥ ${musica.qtd_likes}</div>` : ''}
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+
+      resultsArea.innerHTML = '';
+      resultsArea.appendChild(grid);
+    }
+  </script>
+</body>
+</html>
